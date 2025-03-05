@@ -6,8 +6,9 @@ import numpy as np
 import neat
 import matplotlib.pyplot as plt
 import pickle
+from collections import defaultdict
 
-plt.ion()
+# plt.ion()
 generation = 0
 
 class Tetris():
@@ -16,6 +17,7 @@ class Tetris():
         self.n_cols, self.n_rows = 10, 15+4 # add 4 buffer rows
         self.board = [[0 for _ in range(self.n_cols)] for _ in range(self.n_rows)]
         self.is_alive = True
+        self.lines_cleared = 0
         
     def landing_position(self, board, block, left):
         top = 0
@@ -27,33 +29,34 @@ class Tetris():
             # if overlapped, return top-1
             for y_ind, y in enumerate(block):
                 for x_ind, x in enumerate(y):
-                    if board[top+y_ind][left+x_ind] + x > 1:
+                    if board[top+y_ind][left+x_ind] + x > 1: 
                         return top - 1
         
             top += 1
             
     def place_block(self, board, block, left, top):
+        boardtemp = deepcopy(board)
         for y_ind, y in enumerate(block):
             for x_ind, x in enumerate(y):
-                board[top+y_ind][left+x_ind] += x
+                boardtemp[top+y_ind][left+x_ind] += x
     
-        return board
+        return boardtemp
     
     def landing_params(self, board, block, left, top) -> list:
         # temporarily place the block
-        board_temp = deepcopy(board)
-        board_temp = self.place_block(board_temp, block, left, top)
-        
+        boardtemp = deepcopy(board)
+        boardtemp = self.place_block(boardtemp, block, left, top)
+
         # max height difference between 2 adjacent blocks
         max_diff = 0
         prev_height = 0
         for col_index in range(self.n_cols):
             for row_index in range(self.n_rows+1):
                 
-                if row_index == self.n_rows or board[row_index][col_index] == 1:
-                    cur_height = len(board) - row_index
+                if row_index == self.n_rows or boardtemp[row_index][col_index] == 1:
+                    cur_height = len(boardtemp) - row_index
                     
-                    if col_index != 0:    
+                    if col_index != 0:
                         height_diff = abs(prev_height - cur_height)
                         max_diff = max(max_diff, height_diff)
                         
@@ -66,7 +69,7 @@ class Tetris():
             # first find topmost block, then screen down to get holes
             found_top = False
             for row_index in range(self.n_rows):
-                if board[row_index][col_index] == 1:
+                if boardtemp[row_index][col_index] == 1:
                     found_top = True
                 else: # if empty
                     if found_top == True: # and found topmost, means holes
@@ -77,18 +80,25 @@ class Tetris():
         empty_cols = 0
         for col_index in range(self.n_cols):
             for row_index in range(self.n_rows):
-                if board[row_index][col_index] == 1:
-                    max_height = max(max_height, len(board) - row_index)
+                if boardtemp[row_index][col_index] == 1:
+                    max_height = max(max_height, len(boardtemp) - row_index)
                     break
-                if row_index == self.n_rows - 1 and board[row_index][col_index] == 0:
+                if row_index == self.n_rows - 1 and boardtemp[row_index][col_index] == 0:
                     empty_cols += 1
+                    
+        # holes when comparing rect with max_height to board
+        rect_area = max_height * self.n_cols
+        flooded_holes = rect_area - sum(map(sum, self.board))
         
-        return [max_diff, holes, max_height, empty_cols]
+        return [max_diff, holes, max_height, empty_cols, flooded_holes]
 
     def check_overload(self):
-        self.is_alive = True
+        if self.lines_cleared > 1000:
+            self.is_alive = False
+            return
         for row in range(4):
-            if sum(self.board[row]) > 0: # if there's anything in the buffer layer
+            if sum(self.board[row]) > 0: 
+                # if there's anything in the buffer layer
                 self.is_alive = False
                 
     def get_alive(self):
@@ -96,9 +106,8 @@ class Tetris():
                 
     def get_data(self, block, left):
         # get landing params if dropping 'block' at 'left' position
-        board = deepcopy(self.board)
-        top = self.landing_position(board, block, left)
-        return self.landing_params(board, block, left, top)
+        top = self.landing_position(self.board, block, left)
+        return self.landing_params(self.board, block, left, top)
     
     def update_board(self):
         # update board and return score by line clear
@@ -106,8 +115,9 @@ class Tetris():
         for index, row in enumerate(self.board):
             if sum(row) == self.n_cols:
                 del self.board[index]
-                self.board = [0 for _ in range(self.n_cols)] + self.board
+                self.board = [[0 for _ in range(self.n_cols)]] + self.board
                 cleared_rows += 1
+                self.lines_cleared += 1
         score_dict = {0: 0, 1: 100, 2: 300, 3: 500, 4: 800}
         score = score_dict[cleared_rows]
         return score
@@ -167,7 +177,7 @@ def run_tetris(genomes, config):
         # input data and get score from NEAT
         # iterate thru genomes
         for index, tetris in enumerate(tetrises):
-            if tetris.get_alive: # only proceed for alive tetris
+            if tetris.get_alive(): # only proceed for alive tetris
                 max_score = (block, 0, float('-inf')) # (block, left, output_score)
                 
                 # store rotation variants
@@ -177,38 +187,42 @@ def run_tetris(genomes, config):
                 # iterate thru rotation variants
                 for rot_index, rot_block in enumerate(rotated_blocks):
                     # iterate left to right
-                    for left in range(tetris.n_cols - len(rot_block[0])):
+                    for left in range(tetris.n_cols - len(rot_block[0]) + 1):
                         # get data for harddropping here, send to NEAT get output
                         landing_params = tetris.get_data(rot_block, left)
                         output_score = nets[index].activate(landing_params)[0]
-                        max_score = (block, left, output_score) if output_score > max_score[1] else max_score
+                        max_score = (rot_block, left, output_score) if output_score > max_score[-1] else max_score
                         if max_score == float('-inf'): print('max_score error: ', output_score)
                 
                 # place block
                 top = tetris.landing_position(tetris.board, max_score[0], max_score[1])
                 tetris.board = tetris.place_block(tetris.board, max_score[0], max_score[1], top)
-                
-                # update plot
-                global graphs
-                global axs
-                graphs[index].remove()
-                highlighted_board = tetris.place_block(tetris.board, max_score[0], max_score[1], top)
-                graphs[index] = axs[index].imshow(highlighted_board)
-                
+                genomes[index][1].fitness += 1
                 # kill if overload
                 tetris.check_overload()
+                
+                # print something
+                if index == -1:
+                    global graph, ax, fig
+                    graph.remove()
+                    highlighted_board = tetris.place_block(tetris.board, max_score[0], max_score[1], top)
+                    highlighted_board = tetris.place_block(highlighted_board, [[2]*10]*3, 0, 0)
+                    graph = ax.imshow(highlighted_board, cmap='gray')
+                    fig.suptitle('lines_cleared:' + str(tetris.lines_cleared) +
+                                 '\nblocks_placed:' + str(genomes[index][1].fitness))
+                    plt.pause(0.01)
                 
         # update board to clear lines, and update fitness
         remain_tetrises = 0
         for index, tetris in enumerate(tetrises):
             if tetris.get_alive():
                 remain_tetrises += 1
-                genomes[index][1].fitness += tetris.update_board()
-        
+                tetris.update_board() # genomes[index][1].fitness += tetris.update_board()
+                
         if remain_tetrises == 0:
             print('all dead')
-            fig.suptitle('generation '+str(generation))
-            plt.pause(3)
+            for tetris in tetrises:
+                genomes[index][1].fitness += tetris.lines_cleared * 5
             break
             
 if __name__ == "__main__":
@@ -226,35 +240,30 @@ if __name__ == "__main__":
     p.add_reporter(stats)
     
     # draw first plot
-    fig, axs = plt.subplots(5,6, layout="compressed")
-    axs = [j for i in axs for j in i]
-    graphs = []
-    fig.suptitle('initializing')
-    for id, ax in enumerate(axs):
-        graphs.append(ax.imshow([[0 for _ in range(10)] for _ in range(19)]))
-        ax.set_axis_off()
+    fig, ax = plt.subplots()
+    graph = ax.imshow([[0 for _ in range(10)] for _ in range(19)], cmap='gray')
+    ax.set_axis_off()
     plt.pause(1)
     
     # Run NEAT
-    best_genome = p.run(run_tetris, 2)
-    # with open("winner.pkl", "wb") as f:
-    #     pickle.dump(best_genome, f)
-    #     f.close()
+    winner = p.run(run_tetris, 1000)
+    with open("winner.pkl", "wb") as f:
+        pickle.dump(winner, f)
+        f.close()
     
 
 # import matplotlib.pyplot as plt
  
 # tet = Tetris()
-# block = [[1, 0, 0],
-#          [1, 1, 1]]
-# tet.board = [[0 for _ in range(tet.n_cols)] for _ in range(tet.n_rows)]
-# top = tet.landing_position(tet.board, block, 0)
-# print(top)
-# tet.board = tet.place_block(tet.board, block, 0, top)
-# block = [[1, 1, 0],
-#          [0, 1, 1]]
-# top = tet.landing_position(tet.board, block, 0)
-# plt.imshow(tet.place_block(tet.board, block, 0, top))
+# for i in range(3):
+#     block = [[1,1,1,1,1]]
+#     top = tet.landing_position(tet.board, block, 0)
+#     tet.board = tet.place_block(tet.board, block, 0, top)
+#     block = [[1,1,1,1,1]]
+#     top = tet.landing_position(tet.board, block, 5)
+#     tet.board = tet.place_block(tet.board, block, 5, top)
+# plt.imshow(tet.board)
 # plt.show()
-# print(tet.landing_params(tet.board, block, 0, top))
-# plt.pause(1000)
+# tet.update_board()
+# plt.imshow(tet.board)
+# plt.show()
