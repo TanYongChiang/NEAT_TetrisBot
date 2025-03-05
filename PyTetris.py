@@ -202,7 +202,7 @@ def run_tetris(genomes, config):
                 tetris.check_overload()
                 
                 # print something
-                if index == -1:
+                if index == 1:
                     global graph, ax, fig
                     graph.remove()
                     highlighted_board = tetris.place_block(tetris.board, max_score[0], max_score[1], top)
@@ -247,9 +247,9 @@ if __name__ == "__main__":
     
     # Run NEAT
     winner = p.run(run_tetris, 1000)
-    with open("winner.pkl", "wb") as f:
-        pickle.dump(winner, f)
-        f.close()
+    # with open("winner.pkl", "wb") as f:
+    #     pickle.dump(winner, f)
+    #     f.close()
     
 
 # import matplotlib.pyplot as plt
