@@ -251,9 +251,9 @@ if __name__ == "__main__":
     
     # Run NEAT
     winner = p.run(run_tetris, 1000)
-    with open("winner.pkl", "wb") as f:
-        pickle.dump(winner, f)
-        f.close()
+    # with open("winner.pkl", "wb") as f:
+    #     pickle.dump(winner, f)
+    #     f.close()
     
 
 # import matplotlib.pyplot as plt
