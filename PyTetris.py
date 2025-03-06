@@ -112,12 +112,16 @@ class Tetris():
     def update_board(self):
         # update board and return score by line clear
         cleared_rows = 0
-        for index, row in enumerate(self.board):
-            if sum(row) == self.n_cols:
+        index = 0
+        while index < len(self.board):
+            print('for loop', index)
+            while sum(self.board[index]) == self.n_cols:
+                print('clear index ', index)
                 del self.board[index]
                 self.board = [[0 for _ in range(self.n_cols)]] + self.board
                 cleared_rows += 1
                 self.lines_cleared += 1
+            index += 1
         score_dict = {0: 0, 1: 100, 2: 300, 3: 500, 4: 800}
         score = score_dict[cleared_rows]
         return score
@@ -247,21 +251,24 @@ if __name__ == "__main__":
     
     # Run NEAT
     winner = p.run(run_tetris, 1000)
-    # with open("winner.pkl", "wb") as f:
-    #     pickle.dump(winner, f)
-    #     f.close()
+    with open("winner.pkl", "wb") as f:
+        pickle.dump(winner, f)
+        f.close()
     
 
 # import matplotlib.pyplot as plt
  
 # tet = Tetris()
+# block = [[1,1,1,1,1]]
+# top = tet.landing_position(tet.board, block, 0)
+# tet.board = tet.place_block(tet.board, block, 0, top)
 # for i in range(3):
-#     block = [[1,1,1,1,1]]
+#     block = [[1,1,1,1,1,1,1,1,1,1]]
 #     top = tet.landing_position(tet.board, block, 0)
 #     tet.board = tet.place_block(tet.board, block, 0, top)
-#     block = [[1,1,1,1,1]]
-#     top = tet.landing_position(tet.board, block, 5)
-#     tet.board = tet.place_block(tet.board, block, 5, top)
+# block = [[1,1,1,1,1]]
+# top = tet.landing_position(tet.board, block, 5)
+# tet.board = tet.place_block(tet.board, block, 5, top)
 # plt.imshow(tet.board)
 # plt.show()
 # tet.update_board()
