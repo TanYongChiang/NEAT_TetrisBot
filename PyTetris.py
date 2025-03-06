@@ -7,6 +7,7 @@ import neat
 import matplotlib.pyplot as plt
 import pickle
 from collections import defaultdict
+import statistics
 
 # plt.ion()
 generation = 0
@@ -47,22 +48,22 @@ class Tetris():
         boardtemp = deepcopy(board)
         boardtemp = self.place_block(boardtemp, block, left, top)
 
-        # max height difference between 2 adjacent blocks
-        max_diff = 0
-        prev_height = 0
+        # calculate heights
+        heights = []
         for col_index in range(self.n_cols):
-            for row_index in range(self.n_rows+1):
-                
+            for row_index in range(self.n_rows + 1): # +1 buffer for empty cols
                 if row_index == self.n_rows or boardtemp[row_index][col_index] == 1:
-                    cur_height = len(boardtemp) - row_index
-                    
-                    if col_index != 0:
-                        height_diff = abs(prev_height - cur_height)
-                        max_diff = max(max_diff, height_diff)
-                        
-                    prev_height = cur_height
+                    heights.append(len(boardtemp) - row_index)
                     break
-                    
+        
+        # height differences between adjacent blocks
+        height_differences = []
+        for i in range(self.n_cols - 1):
+            height_differences.append(abs(heights[i]-heights[i+1]))
+
+        # max height difference between 2 adjacent blocks
+        max_diff = max(height_differences)
+        
         # number of holes
         holes = 0
         for col_index in range(self.n_cols):
@@ -76,21 +77,27 @@ class Tetris():
                         holes += 1
         
         # max height of block and number of empty cols
-        max_height = 0
-        empty_cols = 0
-        for col_index in range(self.n_cols):
-            for row_index in range(self.n_rows):
-                if boardtemp[row_index][col_index] == 1:
-                    max_height = max(max_height, len(boardtemp) - row_index)
-                    break
-                if row_index == self.n_rows - 1 and boardtemp[row_index][col_index] == 0:
-                    empty_cols += 1
+        max_height = max(heights)
+        empty_cols = len([i for i in heights if i == 0])
                     
         # holes when comparing rect with max_height to board
         rect_area = max_height * self.n_cols
         flooded_holes = rect_area - sum(map(sum, self.board))
         
-        return [max_diff, holes, max_height, empty_cols, flooded_holes]
+        # average height
+        average_height = statistics.mean(heights)
+        
+        # average height diff
+        average_height_differences = statistics.mean(height_differences)
+        
+        # lines clearable on placement
+        lines_clearable = 0
+        for row in range(self.n_rows):
+            if sum(self.board[row]) == self.n_cols:
+                lines_clearable += 1
+        
+        return [max_diff, holes, max_height, empty_cols, flooded_holes, 
+                average_height, average_height_differences, lines_clearable]
 
     def check_overload(self):
         if self.lines_cleared > 1000:
@@ -114,9 +121,7 @@ class Tetris():
         cleared_rows = 0
         index = 0
         while index < len(self.board):
-            print('for loop', index)
             while sum(self.board[index]) == self.n_cols:
-                print('clear index ', index)
                 del self.board[index]
                 self.board = [[0 for _ in range(self.n_cols)]] + self.board
                 cleared_rows += 1
@@ -205,8 +210,8 @@ def run_tetris(genomes, config):
                 # kill if overload
                 tetris.check_overload()
                 
-                # print something
-                if index == 1:
+                # plot something
+                if index == 0:
                     global graph, ax, fig
                     graph.remove()
                     highlighted_board = tetris.place_block(tetris.board, max_score[0], max_score[1], top)
@@ -250,14 +255,34 @@ if __name__ == "__main__":
     plt.pause(1)
     
     # Run NEAT
-    winner = p.run(run_tetris, 1000)
-    # with open("winner.pkl", "wb") as f:
-    #     pickle.dump(winner, f)
-    #     f.close()
+    winner = p.run(run_tetris, 2)
+    with open("winner-pickle", "wb") as f:
+        pickle.dump(winner, f)
     
+# # play once
+# if __name__ == "__main__":
+#     # Set configuration file
+#     config_path = "./config-feedforward.txt"
+#     config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
+#                                 neat.DefaultSpeciesSet, neat.DefaultStagnation, config_path)
+    
+#     # draw first plot
+#     fig, ax = plt.subplots()
+#     graph = ax.imshow([[0 for _ in range(10)] for _ in range(19)], cmap='gray')
+#     ax.set_axis_off()
+#     plt.pause(1)
+    
+#     with open('./winner-pickle', 'rb') as f:
+#         winner = pickle.load(f)
+#     genomes = [(0, winner)]
+    
+#     run_tetris(genomes, config)
+#     plt.pause(1000)
 
+# # single-use plotting
 # import matplotlib.pyplot as plt
- 
+# import matplotlib.ticker as plticker
+
 # tet = Tetris()
 # block = [[1,1,1,1,1]]
 # top = tet.landing_position(tet.board, block, 0)
@@ -266,10 +291,21 @@ if __name__ == "__main__":
 #     block = [[1,1,1,1,1,1,1,1,1,1]]
 #     top = tet.landing_position(tet.board, block, 0)
 #     tet.board = tet.place_block(tet.board, block, 0, top)
+# for i in range(3):
+#     block = [[1,1,1]]
+#     top = tet.landing_position(tet.board, block, 0)
+#     tet.board = tet.place_block(tet.board, block, 0, top)
 # block = [[1,1,1,1,1]]
+# data = tet.get_data(block, 5)
 # top = tet.landing_position(tet.board, block, 5)
 # tet.board = tet.place_block(tet.board, block, 5, top)
-# plt.imshow(tet.board)
+
+# print(data)
+
+# plot = plt.imshow(tet.board)
+# loc = plticker.MultipleLocator(base=1.0)
+# plot.axes.xaxis.set_major_locator(loc)
+# plot.axes.yaxis.set_major_locator(loc)
 # plt.show()
 # tet.update_board()
 # plt.imshow(tet.board)
