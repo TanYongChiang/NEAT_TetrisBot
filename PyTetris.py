@@ -9,8 +9,8 @@ import pickle
 from collections import defaultdict
 import statistics
 
-# plt.ion()
 generation = 0
+best_genome_id = 1 # for plotting purposes
 
 class Tetris():
     
@@ -146,6 +146,7 @@ def run_tetris(genomes, config):
         tetrises.append(Tetris())
     
     # main loop
+    global best_genome_id
     global generation
     generation += 1
     while True:
@@ -211,13 +212,14 @@ def run_tetris(genomes, config):
                 tetris.check_overload()
                 
                 # plot something
-                if index == 0:
+                if genomes[index][0] == best_genome_id:
                     global graph, ax, fig
                     graph.remove()
                     highlighted_board = tetris.place_block(tetris.board, max_score[0], max_score[1], top)
                     highlighted_board = tetris.place_block(highlighted_board, [[2]*10]*3, 0, 0)
                     graph = ax.imshow(highlighted_board, cmap='gray')
-                    fig.suptitle('lines_cleared:' + str(tetris.lines_cleared) +
+                    fig.suptitle('genome id:' + str(genomes[index][0]) + 
+                                 '\nlines_cleared:' + str(tetris.lines_cleared) +
                                  '\nblocks_placed:' + str(genomes[index][1].fitness))
                     plt.pause(0.01)
                 
@@ -230,8 +232,13 @@ def run_tetris(genomes, config):
                 
         if remain_tetrises == 0:
             print('all dead')
-            for tetris in tetrises:
+            max_fitness = (0, float('-inf'))
+            for index, tetris in enumerate(tetrises):
                 genomes[index][1].fitness += tetris.lines_cleared * 5
+                max_fitness = (genomes[index][0], genomes[index][1].fitness) if genomes[index][1].fitness > max_fitness[1] else max_fitness
+            
+            best_genome_id = max_fitness[0]
+            print('best genome id is', best_genome_id)
             break
             
 if __name__ == "__main__":
@@ -255,7 +262,7 @@ if __name__ == "__main__":
     plt.pause(1)
     
     # Run NEAT
-    winner = p.run(run_tetris, 2)
+    winner = p.run(run_tetris, None)
     with open("winner-pickle", "wb") as f:
         pickle.dump(winner, f)
     
