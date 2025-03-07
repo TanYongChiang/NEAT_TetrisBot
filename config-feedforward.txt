@@ -2,7 +2,7 @@
 
 [NEAT]
 fitness_criterion     = max
-fitness_threshold     = 1000
+fitness_threshold     = 2000
 # start: ~avg 36, best 82
 pop_size              = 200
 reset_on_extinction   = False

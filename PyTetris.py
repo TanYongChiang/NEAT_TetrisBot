@@ -5,6 +5,7 @@ import neat.checkpoint
 import numpy as np
 import neat
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 import pickle
 from collections import defaultdict
 import statistics
@@ -133,6 +134,14 @@ class Tetris():
     
 def run_tetris(genomes, config):
     
+    def pad_block(block, layer):
+        for _ in range(layer):
+            for i, __ in enumerate(block):
+                block[i] = [0] + block[i] + [0] # pad horizontally
+        for _ in range(layer):
+            block = [[0]*len(block[0])] + block + [[0]*len(block[0])] # pad vertically
+        return block
+    
     # init NEAT
     nets = []
     tetrises = []
@@ -149,6 +158,7 @@ def run_tetris(genomes, config):
     global best_genome_id
     global generation
     generation += 1
+    hold = None # block_index
     while True:
         # random a block
         blockdict = {
@@ -183,6 +193,9 @@ def run_tetris(genomes, config):
         }
         block_index = random.randint(0, 6)
         block = blockdict[block_index]
+        if not hold:
+            hold = block_index
+            continue
         
         # input data and get score from NEAT
         # iterate thru genomes
@@ -202,7 +215,23 @@ def run_tetris(genomes, config):
                         landing_params = tetris.get_data(rot_block, left)
                         output_score = nets[index].activate(landing_params)[0]
                         max_score = (rot_block, left, output_score) if output_score > max_score[-1] else max_score
-                        if max_score == float('-inf'): print('max_score error: ', output_score)
+                        
+                # check also for hold block, same as above
+                hold_flag = False # swap blocks at the end if True
+                if block_index != hold:
+                    rotated_blocks = [blockdict[hold]]
+                    for _ in range(rotations[hold]):
+                        rotated_blocks.append(np.rot90(rotated_blocks[-1]))
+                    for rot_index, rot_block in enumerate(rotated_blocks):
+                        for left in range(tetris.n_cols - len(rot_block[0]) + 1):
+                            landing_params = tetris.get_data(rot_block, left)
+                            output_score = nets[index].activate(landing_params)[0]
+                            
+                            if output_score > max_score[-1]:
+                                hold_flag = True
+                                max_score = (rot_block, left, output_score)
+                    if hold_flag:
+                        hold, block_index = block_index, hold # swap out block for hold
                 
                 # place block
                 top = tetris.landing_position(tetris.board, max_score[0], max_score[1])
@@ -213,14 +242,19 @@ def run_tetris(genomes, config):
                 
                 # plot something
                 if genomes[index][0] == best_genome_id:
-                    global graph, ax, fig
-                    graph.remove()
+                    global plot_board, plot_hold, ax0, ax1
+                    plot_board.remove()
+                    plot_hold.remove()
+                    
                     highlighted_board = tetris.place_block(tetris.board, max_score[0], max_score[1], top)
-                    highlighted_board = tetris.place_block(highlighted_board, [[2]*10]*3, 0, 0)
-                    graph = ax.imshow(highlighted_board, cmap='gray')
-                    fig.suptitle('genome id:' + str(genomes[index][0]) + 
-                                 '\nlines_cleared:' + str(tetris.lines_cleared) +
-                                 '\nblocks_placed:' + str(genomes[index][1].fitness))
+                    highlighted_board = tetris.place_block(highlighted_board, [[2]*10]*3, 0, 0) # hide buffer layer
+                    plot_board = ax0.imshow(highlighted_board, cmap='gray', aspect='auto')
+                    ax0.axes.set_title('genome id:' + str(genomes[index][0]) + 
+                                        '\nlines_cleared:' + str(tetris.lines_cleared) +
+                                        '\nblocks_placed:' + str(genomes[index][1].fitness))
+                    plot_hold = ax1.imshow(pad_block(blockdict[hold], 2), cmap='gray', aspect='auto')
+                    plot_hold.axes.set_title('hold piece')
+                    
                     plt.pause(0.01)
                 
         # update board to clear lines, and update fitness
@@ -256,9 +290,17 @@ if __name__ == "__main__":
     p.add_reporter(stats)
     
     # draw first plot
-    fig, ax = plt.subplots()
-    graph = ax.imshow([[0 for _ in range(10)] for _ in range(19)], cmap='gray')
-    ax.set_axis_off()
+    outer = gridspec.GridSpec(1,2,width_ratios=[10,3])
+    gs0 = gridspec.GridSpecFromSubplotSpec(1,1,subplot_spec=outer[0])
+    gs1 = gridspec.GridSpecFromSubplotSpec(3,1,subplot_spec=outer[1], height_ratios=[3,4,12])
+    ax0 = plt.subplot(gs0[0])
+    init_board = [[1 for _ in range(10)] for _ in range(4)] + [[0 for _ in range(10)] for _ in range(15)]
+    plot_board = ax0.imshow(init_board, cmap='gray', aspect='auto')
+    ax1 = plt.subplot(gs1[1])
+    plot_hold = ax1.imshow([[0 for _ in range(4)] for _ in range(4)], cmap='gray', aspect='auto')
+    ax0.set_axis_off(), ax1.set_axis_off()
+    plot_board.axes.set_title('board \ninitializing')
+    plot_hold.axes.set_title('hold piece')
     plt.pause(1)
     
     # Run NEAT
@@ -274,14 +316,22 @@ if __name__ == "__main__":
 #                                 neat.DefaultSpeciesSet, neat.DefaultStagnation, config_path)
     
 #     # draw first plot
-#     fig, ax = plt.subplots()
-#     graph = ax.imshow([[0 for _ in range(10)] for _ in range(19)], cmap='gray')
-#     ax.set_axis_off()
+#     outer = gridspec.GridSpec(1,2,width_ratios=[10,3])
+#     gs0 = gridspec.GridSpecFromSubplotSpec(1,1,subplot_spec=outer[0])
+#     gs1 = gridspec.GridSpecFromSubplotSpec(3,1,subplot_spec=outer[1], height_ratios=[3,4,12])
+#     ax0 = plt.subplot(gs0[0])
+#     init_board = [[1 for _ in range(10)] for _ in range(4)] + [[0 for _ in range(10)] for _ in range(15)]
+#     plot_board = ax0.imshow(init_board, cmap='gray', aspect='auto')
+#     ax1 = plt.subplot(gs1[1])
+#     plot_hold = ax1.imshow([[0 for _ in range(4)] for _ in range(4)], cmap='gray', aspect='auto')
+#     ax0.set_axis_off(), ax1.set_axis_off()
+#     plot_board.axes.set_title('board \ninitializing')
+#     plot_hold.axes.set_title('hold piece')
 #     plt.pause(1)
     
 #     with open('./winner-pickle', 'rb') as f:
 #         winner = pickle.load(f)
-#     genomes = [(0, winner)]
+#     genomes = [(1, winner)]
     
 #     run_tetris(genomes, config)
 #     plt.pause(1000)
