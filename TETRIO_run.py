@@ -6,7 +6,7 @@ import pickle
 import neat
 import time
 
-pyautogui.PAUSE = 0.05
+pyautogui.PAUSE = 0.03
 
 class Read_Screen():
     
@@ -18,8 +18,10 @@ class Read_Screen():
         self.extrabottomright_search = (1156, 322)
         self.n_cols = 10
         self.n_rows = 20
-        self.hold_topleft = (658, 286)
-        self.hold_bottomright = (805, 365)
+        self.hold_topleft =  (627, 287) #(658, 286)
+        self.hold_bottomright = (784, 367) #(805, 365)
+        self.next_topleft = (1164, 285) #(1189, 283)
+        self.next_bottomright = (1318, 374) #(1348, 374)
         self.blockdict = {
             0: [[0, 1, 0],
                 [1, 1, 1]],
@@ -104,6 +106,15 @@ class Read_Screen():
         # return block index, None if nothing
         topleft = self.hold_topleft
         bottomright = self.hold_bottomright
+        width = bottomright[0]-topleft[0]
+        length = bottomright[1]-topleft[1]
+        img = pyautogui.screenshot(region=(topleft[0], topleft[1], width, length))
+        return self.identify_block_from_image(img)
+    
+    def find_next_blocks(self):
+        # return block index, None if nothing
+        topleft = self.next_topleft
+        bottomright = self.next_bottomright
         width = bottomright[0]-topleft[0]
         length = bottomright[1]-topleft[1]
         img = pyautogui.screenshot(region=(topleft[0], topleft[1], width, length))
@@ -289,17 +300,16 @@ class Tetrio(Read_Screen):
         
         while True:
             self.screenshot()
-            tetris.board, dropping_blocks_id = self.find_landed_blocks(), self.find_dropping_blocks()
-            if dropping_blocks_id == None:
-                continue
+            tetris.board = self.find_landed_blocks()
             holding_blocks_id = self.find_holding_blocks()
             if holding_blocks_id == None:
                 self.hold_block()
                 print('hold block')
+                curr_block = self.find_next_blocks()
                 continue
             
             max_score = (0, 0, 0, float('-inf')) # (rotation, block, left, output_score)
-            for rot_index, rot_block in enumerate(self.generate_rotation_variants(dropping_blocks_id)): # get rotation variants
+            for rot_index, rot_block in enumerate(self.generate_rotation_variants(curr_block)): # get rotation variants
                 for left in range(self.n_cols - len(rot_block[0]) + 1): # iterate left to right
                     landing_params = tetris.get_data(rot_block, left)
                     output_score = net.activate(landing_params)[0]
@@ -307,7 +317,7 @@ class Tetrio(Read_Screen):
 
             # repeat for hold block
             hold_flag = False # swap blocks at the end if True
-            if dropping_blocks_id != holding_blocks_id:
+            if curr_block != holding_blocks_id:
                 for rot_index, rot_block in enumerate(self.generate_rotation_variants(holding_blocks_id)):
                     for left in range(self.n_cols - len(rot_block[0]) + 1):
                         landing_params = tetris.get_data(rot_block, left)
@@ -318,7 +328,7 @@ class Tetrio(Read_Screen):
                             max_score = (rot_index, rot_block, left, output_score)
             
             # update tetris
-            block_index = holding_blocks_id if hold_flag else dropping_blocks_id
+            block_index = holding_blocks_id if hold_flag else curr_block
             top = tetris.landing_position(tetris.board, max_score[1], max_score[2])
             tetris.board = tetris.place_block(tetris.board, max_score[1], max_score[2], top)
             tetris.update_board()
@@ -333,19 +343,18 @@ class Tetrio(Read_Screen):
                 self.rotate_ccw()
             
             spawn_left_after_rotate = self.get_block_spawn_left_coor(block_index) + self.get_rotation_left_displacement(block_index, max_score[0])
-            distance_to_move = abs(spawn_left_after_rotate - max_score[2])
-            if max_score[2] < 3:
-                for _ in range(distance_to_move): 
+            distance_to_move = spawn_left_after_rotate - max_score[2]
+            if distance_to_move > 0:
+                for _ in range(abs(distance_to_move)):
                     self.move_left()
-            elif max_score[2] > 3:
-                for _ in range(distance_to_move): 
+            elif distance_to_move < 0:
+                for _ in range(abs(distance_to_move)):
                     self.move_right()
+            
+            curr_block = self.find_next_blocks()
             
             self.hard_drop()
             print('place block', max_score[1], 'at left', max_score[2])
-            
-            for i in range(10):
-                self.soft_drop()
              
 if __name__ == "__main__":
     
