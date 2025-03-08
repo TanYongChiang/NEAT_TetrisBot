@@ -98,7 +98,7 @@ class Tetris():
             if sum(self.board[row]) == self.n_cols:
                 lines_clearable += 1
         
-        return [max_diff, holes, max_height, empty_cols, flooded_holes, 
+        return [max_diff, holes, max_height, min_height, empty_cols, flooded_holes, 
                 average_height, average_height_differences, lines_clearable]
 
     def check_overload(self):
