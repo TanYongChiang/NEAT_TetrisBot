@@ -77,8 +77,9 @@ class Tetris():
                     if found_top == True: # and found topmost, means holes
                         holes += 1
         
-        # max height of block and number of empty cols
+        # min, max height of block and number of empty cols
         max_height = max(heights)
+        min_height = min(heights)
         empty_cols = len([i for i in heights if i == 0])
                     
         # holes when comparing rect with max_height to board
@@ -134,7 +135,7 @@ class Tetris():
     
 def run_tetris(genomes, config):
     
-    def pad_block(block, layer):
+    def pad_block(block, layer): # for plot hold block
         for _ in range(layer):
             for i, __ in enumerate(block):
                 block[i] = [0] + block[i] + [0] # pad horizontally
@@ -189,11 +190,11 @@ def run_tetris(genomes, config):
             3: 3,
             4: 3,
             5: 1,
-            6: 1
+            6: 0
         }
         block_index = random.randint(0, 6)
         block = blockdict[block_index]
-        if not hold:
+        if hold == None:
             hold = block_index
             continue
         
@@ -275,45 +276,19 @@ def run_tetris(genomes, config):
             print('best genome id is', best_genome_id)
             break
             
-if __name__ == "__main__":
-    # Set configuration file
-    config_path = "./config-feedforward.txt"
-    config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
-                                neat.DefaultSpeciesSet, neat.DefaultStagnation, config_path)
-
-    # Create core evolution algorithm class
-    p = neat.Population(config)
-
-    # Add reporter for fancy statistical result
-    p.add_reporter(neat.StdOutReporter(True))
-    stats = neat.StatisticsReporter()
-    p.add_reporter(stats)
-    
-    # draw first plot
-    outer = gridspec.GridSpec(1,2,width_ratios=[10,3])
-    gs0 = gridspec.GridSpecFromSubplotSpec(1,1,subplot_spec=outer[0])
-    gs1 = gridspec.GridSpecFromSubplotSpec(3,1,subplot_spec=outer[1], height_ratios=[3,4,12])
-    ax0 = plt.subplot(gs0[0])
-    init_board = [[1 for _ in range(10)] for _ in range(4)] + [[0 for _ in range(10)] for _ in range(15)]
-    plot_board = ax0.imshow(init_board, cmap='gray', aspect='auto')
-    ax1 = plt.subplot(gs1[1])
-    plot_hold = ax1.imshow([[0 for _ in range(4)] for _ in range(4)], cmap='gray', aspect='auto')
-    ax0.set_axis_off(), ax1.set_axis_off()
-    plot_board.axes.set_title('board \ninitializing')
-    plot_hold.axes.set_title('hold piece')
-    plt.pause(1)
-    
-    # Run NEAT
-    winner = p.run(run_tetris, None)
-    with open("winner-pickle", "wb") as f:
-        pickle.dump(winner, f)
-    
-# # play once
 # if __name__ == "__main__":
 #     # Set configuration file
 #     config_path = "./config-feedforward.txt"
 #     config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
 #                                 neat.DefaultSpeciesSet, neat.DefaultStagnation, config_path)
+
+#     # Create core evolution algorithm class
+#     p = neat.Population(config)
+
+#     # Add reporter for fancy statistical result
+#     p.add_reporter(neat.StdOutReporter(True))
+#     stats = neat.StatisticsReporter()
+#     p.add_reporter(stats)
     
 #     # draw first plot
 #     outer = gridspec.GridSpec(1,2,width_ratios=[10,3])
@@ -329,12 +304,38 @@ if __name__ == "__main__":
 #     plot_hold.axes.set_title('hold piece')
 #     plt.pause(1)
     
-#     with open('./winner-pickle', 'rb') as f:
-#         winner = pickle.load(f)
-#     genomes = [(1, winner)]
+#     # Run NEAT
+#     winner = p.run(run_tetris, None)
+#     with open("winner-pickle", "wb") as f:
+#         pickle.dump(winner, f)
     
-#     run_tetris(genomes, config)
-#     plt.pause(1000)
+# play once
+if __name__ == "__main__":
+    # Set configuration file
+    config_path = "./config-feedforward.txt"
+    config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                                neat.DefaultSpeciesSet, neat.DefaultStagnation, config_path)
+    
+    # draw first plot
+    outer = gridspec.GridSpec(1,2,width_ratios=[10,3])
+    gs0 = gridspec.GridSpecFromSubplotSpec(1,1,subplot_spec=outer[0])
+    gs1 = gridspec.GridSpecFromSubplotSpec(3,1,subplot_spec=outer[1], height_ratios=[3,4,12])
+    ax0 = plt.subplot(gs0[0])
+    init_board = [[1 for _ in range(10)] for _ in range(4)] + [[0 for _ in range(10)] for _ in range(15)]
+    plot_board = ax0.imshow(init_board, cmap='gray', aspect='auto')
+    ax1 = plt.subplot(gs1[1])
+    plot_hold = ax1.imshow([[0 for _ in range(4)] for _ in range(4)], cmap='gray', aspect='auto')
+    ax0.set_axis_off(), ax1.set_axis_off()
+    plot_board.axes.set_title('board \ninitializing')
+    plot_hold.axes.set_title('hold piece')
+    plt.pause(1)
+    
+    with open('./winner-pickle', 'rb') as f:
+        winner = pickle.load(f)
+    genomes = [(1, winner)]
+    
+    run_tetris(genomes, config)
+    plt.pause(1000)
 
 # # single-use plotting
 # import matplotlib.pyplot as plt
