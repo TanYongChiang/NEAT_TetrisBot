@@ -6,22 +6,22 @@ import pickle
 import neat
 import time
 
-pyautogui.PAUSE = 0.03
+pyautogui.PAUSE = 0.05
 
 class Read_Screen():
     
     def __init__(self):
         
-        self.topleft = (817, 250)
-        self.bottomright = (1156, 925)
+        self.topleft = (434, 227)
+        self.bottomright = (772, 894)
         self.extratopleft_search = (817, 117)
         self.extrabottomright_search = (1156, 322)
         self.n_cols = 10
         self.n_rows = 20
-        self.hold_topleft =  (627, 287) #(658, 286)
-        self.hold_bottomright = (784, 367) #(805, 365)
-        self.next_topleft = (1164, 285) #(1189, 283)
-        self.next_bottomright = (1318, 374) #(1348, 374)
+        self.hold_topleft =  (260, 263) 
+        self.hold_bottomright = (382, 336  ) 
+        self.next_topleft = ( 794 , 264 )
+        self.next_bottomright = (913, 334)  
         self.blockdict = {
             0: [[0, 1, 0],
                 [1, 1, 1]],
@@ -118,6 +118,7 @@ class Read_Screen():
         width = bottomright[0]-topleft[0]
         length = bottomright[1]-topleft[1]
         img = pyautogui.screenshot(region=(topleft[0], topleft[1], width, length))
+        img.save('next.png')
         return self.identify_block_from_image(img)
     
     def trim_surround(self, matrix):
@@ -242,9 +243,12 @@ class Tetrio(Read_Screen):
                     5: 1,
                     6: 0
                 }
-        rotated_blocks = [self.blockdict[block_index]]
-        for _ in range(rotations[block_index]):
-            rotated_blocks.append(np.rot90(rotated_blocks[-1]))
+        rotated_blocks = None
+        if block_index != None:
+            rotated_blocks = [self.blockdict[block_index]]
+            for _ in range(rotations[block_index]):
+                print('rotate')
+                rotated_blocks.append(np.rot90(rotated_blocks[-1]))
         return rotated_blocks
     
     def get_rotation_left_displacement(self, block_index, rotation):
@@ -309,7 +313,12 @@ class Tetrio(Read_Screen):
                 continue
             
             max_score = (0, 0, 0, float('-inf')) # (rotation, block, left, output_score)
-            for rot_index, rot_block in enumerate(self.generate_rotation_variants(curr_block)): # get rotation variants
+            rotation_variants = self.generate_rotation_variants(curr_block)
+            while rotation_variants == None:
+                print('searching for block')
+                curr_block = self.find_next_blocks()
+                rotation_variants = self.generate_rotation_variants(curr_block)
+            for rot_index, rot_block in enumerate(rotation_variants): # get rotation variants
                 for left in range(self.n_cols - len(rot_block[0]) + 1): # iterate left to right
                     landing_params = tetris.get_data(rot_block, left)
                     output_score = net.activate(landing_params)[0]
@@ -361,7 +370,7 @@ if __name__ == "__main__":
     with open('./winner-pickle', 'rb') as f:
         winner = pickle.load(f)
      
-    config_path = "./config-feedforward.txt"
+    config_path = "NEAT_TetrisBot/config-feedforward.txt"
     config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
                                 neat.DefaultSpeciesSet, neat.DefaultStagnation, config_path)
 
